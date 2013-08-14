@@ -35,6 +35,10 @@ if [ -e "/etc/defaults/trueos" ] ; then
   # Overwrite old linker.hints at boot
   kldxref_enable="YES"
   kldxref_clobber="YES"
+
+  # Enable the crash-reporter for textdumps
+  ix_textdump_enable="YES"
+  ix_diagnose_enable="YES"
 fi
 
 # Defaults for PC-BSD desktops
@@ -162,4 +166,8 @@ if [ -e "/etc/defaults/pcbsd" ] ; then
   # Overwrite old linker.hints at boot
   kldxref_enable="YES"
   kldxref_clobber="YES"
+
+  # Enable the crash-reporter for textdumps
+  ix_textdump_enable="YES"
+  ix_diagnose_enable="YES"
 fi
