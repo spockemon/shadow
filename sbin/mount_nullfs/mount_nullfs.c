@@ -101,9 +101,11 @@ main(int argc, char *argv[])
 	(void)checkpath(argv[0], target);
 	(void)checkpath(argv[1], source);
 
-	if (subdir(target, source) || subdir(source, target))
-		errx(EX_USAGE, "%s (%s) and %s are not distinct paths",
-		    argv[0], target, argv[1]);
+	// Removing the rails here so we can mount "/" to "/usr/target"
+	// This will be used for the PBING system
+	//if (subdir(target, source) || subdir(source, target))
+	//	errx(EX_USAGE, "%s (%s) and %s are not distinct paths",
+	//	    argv[0], target, argv[1]);
 
 	build_iovec(&iov, &iovlen, "fstype", nullfs, (size_t)-1);
 	build_iovec(&iov, &iovlen, "fspath", source, (size_t)-1);
