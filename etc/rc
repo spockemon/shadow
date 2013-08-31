@@ -110,8 +110,11 @@ if [ -e "/var/.freebsd-update-finish" ] ; then
    else
      /usr/local/bin/pc-extractoverlay server
    fi
+
+   rm /var/.freebsd-update-finish 2>/dev/null
+
    echo "Press ENTER to continue"
-   read tmp
+   read -t 30 tmp
 fi
 
 if [ "$fastboot_enable" = "YES" ]; then
