@@ -117,6 +117,9 @@ if [ -e "/var/.freebsd-update-finish" ] ; then
    read -t 30 tmp
 fi
 
+# Tickle /etc/version
+uname -r > /etc/version
+
 if [ "$fastboot_enable" = "YES" ]; then
   # We are fast-booting
 
