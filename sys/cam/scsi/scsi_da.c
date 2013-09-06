@@ -90,7 +90,8 @@ typedef enum {
 	DA_FLAG_OPEN		= 0x100,
 	DA_FLAG_SCTX_INIT	= 0x200,
 	DA_FLAG_CAN_RC16	= 0x400,
-	DA_FLAG_PROBED		= 0x800		
+	DA_FLAG_PROBED		= 0x800,
+	DA_FLAG_DIRTY		= 0x1000
 } da_flags;
 
 typedef enum {
@@ -1232,6 +1233,7 @@ daclose(struct disk *dp)
 {
 	struct	cam_periph *periph;
 	struct	da_softc *softc;
+	int error;
 
 	periph = (struct cam_periph *)dp->d_drv1;
 	cam_periph_lock(periph);
@@ -1246,8 +1248,9 @@ daclose(struct disk *dp)
 	CAM_DEBUG(periph->path, CAM_DEBUG_TRACE | CAM_DEBUG_PERIPH,
 	    ("daclose\n"));
 
-	if ((softc->quirks & DA_Q_NO_SYNC_CACHE) == 0
-	 && (softc->flags & DA_FLAG_PACK_INVALID) == 0) {
+	if ((softc->flags & DA_FLAG_DIRTY) != 0 &&
+	    (softc->quirks & DA_Q_NO_SYNC_CACHE) == 0 &&
+	    (softc->flags & DA_FLAG_PACK_INVALID) == 0) {
 		union	ccb *ccb;
 
 		ccb = cam_periph_getccb(periph, CAM_PRIORITY_NORMAL);
@@ -1261,9 +1264,11 @@ daclose(struct disk *dp)
 				       SSD_FULL_SIZE,
 				       5 * 60 * 1000);
 
-		cam_periph_runccb(ccb, daerror, /*cam_flags*/0,
+		error = cam_periph_runccb(ccb, daerror, /*cam_flags*/0,
 				  /*sense_flags*/SF_RETRY_UA | SF_QUIET_IR,
 				  softc->disk->d_devstat);
+		if (error == 0)
+			softc->flags &= ~DA_FLAG_DIRTY;
 		xpt_release_ccb(ccb);
 
 	}
@@ -2458,8 +2463,10 @@ skipstate:
 		}
 
 		switch (bp->bio_cmd) {
-		case BIO_READ:
 		case BIO_WRITE:
+			softc->flags |= DA_FLAG_DIRTY;
+			/* FALLTHROUGH */
+		case BIO_READ:
 			scsi_read_write(&start_ccb->csio,
 					/*retries*/da_retry_count,
 					/*cbfcnp*/dadone,
@@ -2766,6 +2773,29 @@ cmd6workaround(union ccb *ccb)
 		bioq_insert_tail(&softc->delete_queue,
 		    (struct bio *)ccb->ccb_h.ccb_bp);
 		ccb->ccb_h.ccb_bp = NULL;
+		return (0);
+	}
+
+	/* Detect unsupported PREVENT ALLOW MEDIUM REMOVAL. */
+	if ((ccb->ccb_h.flags & CAM_CDB_POINTER) == 0 &&
+	    (*cdb == PREVENT_ALLOW) &&
+	    (softc->quirks & DA_Q_NO_PREVENT) == 0) {
+		if (bootverbose)
+			xpt_print(ccb->ccb_h.path,
+			    "PREVENT ALLOW MEDIUM REMOVAL not supported.\n");
+		softc->quirks |= DA_Q_NO_PREVENT;
+		return (0);
+	}
+
+	/* Detect unsupported SYNCHRONIZE CACHE(10). */
+	if ((ccb->ccb_h.flags & CAM_CDB_POINTER) == 0 &&
+	    (*cdb == SYNCHRONIZE_CACHE) &&
+	    (softc->quirks & DA_Q_NO_SYNC_CACHE) == 0) {
+		if (bootverbose)
+			xpt_print(ccb->ccb_h.path,
+			    "SYNCHRONIZE CACHE(10) not supported.\n");
+		softc->quirks |= DA_Q_NO_SYNC_CACHE;
+		softc->disk->d_flags &= ~DISKFLAG_CANFLUSHCACHE;
 		return (0);
 	}
 
