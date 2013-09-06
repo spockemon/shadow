@@ -10,15 +10,11 @@ start
 \ Tests for password -- executes autoboot first if a password was defined
 check-password
 
-\ Check which menu to load
-s" pcbsd_boot" getenv
--1 = [if]
-	\ Load in the trueos boot menu
-	s" include /boot/beastie.4th" evaluate
-[else]
-	\ Load in the pcbsd boot menu
-	s" include /boot/pcbsd.4th" evaluate
-[then]
+\ Uncomment to enable boot menu
+\ include /boot/beastie.4th
+\ beastie-start
+
+\ Unless set otherwise, autoboot is automatic at this point
 
 \ Start the boot menu
 beastie-start

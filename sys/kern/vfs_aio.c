@@ -1333,7 +1333,7 @@ aio_qphysio(struct proc *p, struct aiocblist *aiocbe)
 	/*
 	 * Bring buffer into kernel space.
 	 */
-	if (vmapbuf(bp, 1) < 0) {
+	if (vmapbuf(bp, (dev->si_flags & SI_UNMAPPED) == 0) < 0) {
 		error = EFAULT;
 		goto doerror;
 	}
@@ -2693,31 +2693,6 @@ aiocb32_copyin_old_sigevent(struct aiocb *ujob, struct aiocb *kjob)
 	PTRIN_CP(job32, *kjob, _aiocb_private.kernelinfo);
 	return (convert_old_sigevent32(&job32.aio_sigevent,
 	    &kjob->aio_sigevent));
-}
-
-static int
-convert_sigevent32(struct sigevent32 *sig32, struct sigevent *sig)
-{
-
-	CP(*sig32, *sig, sigev_notify);
-	switch (sig->sigev_notify) {
-	case SIGEV_NONE:
-		break;
-	case SIGEV_THREAD_ID:
-		CP(*sig32, *sig, sigev_notify_thread_id);
-		/* FALLTHROUGH */
-	case SIGEV_SIGNAL:
-		CP(*sig32, *sig, sigev_signo);
-		break;
-	case SIGEV_KEVENT:
-		CP(*sig32, *sig, sigev_notify_kqueue);
-		CP(*sig32, *sig, sigev_notify_kevent_flags);
-		PTRIN_CP(*sig32, *sig, sigev_value.sival_ptr);
-		break;
-	default:
-		return (EINVAL);
-	}
-	return (0);
 }
 
 static int

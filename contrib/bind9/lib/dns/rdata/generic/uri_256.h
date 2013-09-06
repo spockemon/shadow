@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2004, 2005, 2007, 2012  Internet Systems Consortium, Inc. ("ISC")
- * Copyright (C) 1999-2001  Internet Software Consortium.
+ * Copyright (C) 2011, 2012  Internet Systems Consortium, Inc. ("ISC")
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,26 +14,18 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef IN_1_NAPTR_35_H
-#define IN_1_NAPTR_35_H 1
+#ifndef GENERIC_URI_256_H
+#define GENERIC_URI_256_H 1
 
 /* $Id$ */
 
-/*!
- *  \brief Per RFC2915 */
-
-typedef struct dns_rdata_in_naptr {
+typedef struct dns_rdata_uri {
 	dns_rdatacommon_t	common;
-	isc_mem_t		*mctx;
-	isc_uint16_t		order;
-	isc_uint16_t		preference;
-	char			*flags;
-	isc_uint8_t		flags_len;
-	char			*service;
-	isc_uint8_t		service_len;
-	char			*regexp;
-	isc_uint8_t		regexp_len;
-	dns_name_t		replacement;
-} dns_rdata_in_naptr_t;
+	isc_mem_t *		mctx;
+	isc_uint16_t		priority;
+	isc_uint16_t		weight;
+	unsigned char *		target;
+	isc_uint16_t		tgt_len;
+} dns_rdata_uri_t;
 
-#endif /* IN_1_NAPTR_35_H */
+#endif /* GENERIC_URI_256_H */
