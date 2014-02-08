@@ -102,6 +102,9 @@ struct disk {
 
 	/* new fields in stable - don't use if DISKFLAG_LACKS_DELMAX is set */
 	off_t			d_delmaxsize;
+
+	/* new fields in stable */
+	uint16_t		d_rotation_rate;
 };
 
 #define DISKFLAG_NEEDSGIANT	0x1
@@ -124,7 +127,8 @@ void disk_media_gone(struct disk *dp, int flag);
 #define DISK_VERSION_01		0x5856105a
 #define DISK_VERSION_02		0x5856105b
 #define DISK_VERSION_03		0x5856105c
-#define DISK_VERSION		DISK_VERSION_03
+#define DISK_VERSION_04		0x5856105d
+#define DISK_VERSION		DISK_VERSION_04
 
 #endif /* _KERNEL */
 #endif /* _GEOM_GEOM_DISK_H_ */

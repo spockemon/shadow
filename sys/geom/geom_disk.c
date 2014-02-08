@@ -382,22 +382,25 @@ g_disk_start(struct bio *bp)
 			break;
 		else if (g_handleattr_str(bp, "GEOM::ident", dp->d_ident))
 			break;
-		else if (g_handleattr(bp, "GEOM::hba_vendor",
-		    &dp->d_hba_vendor, 2))
+		else if (g_handleattr_uint16_t(bp, "GEOM::hba_vendor",
+		    dp->d_hba_vendor))
 			break;
-		else if (g_handleattr(bp, "GEOM::hba_device",
-		    &dp->d_hba_device, 2))
+		else if (g_handleattr_uint16_t(bp, "GEOM::hba_device",
+		    dp->d_hba_device))
 			break;
-		else if (g_handleattr(bp, "GEOM::hba_subvendor",
-		    &dp->d_hba_subvendor, 2))
+		else if (g_handleattr_uint16_t(bp, "GEOM::hba_subvendor",
+		    dp->d_hba_subvendor))
 			break;
-		else if (g_handleattr(bp, "GEOM::hba_subdevice",
-		    &dp->d_hba_subdevice, 2))
+		else if (g_handleattr_uint16_t(bp, "GEOM::hba_subdevice",
+		    dp->d_hba_subdevice))
 			break;
 		else if (!strcmp(bp->bio_attribute, "GEOM::kerneldump"))
 			g_disk_kerneldump(bp, dp);
 		else if (!strcmp(bp->bio_attribute, "GEOM::setstate"))
 			g_disk_setstate(bp, sc);
+		else if (g_handleattr_uint16_t(bp, "GEOM::rotation_rate",
+		    dp->d_rotation_rate))
+			break;
 		else 
 			error = ENOIOCTL;
 		break;
@@ -634,11 +637,13 @@ void
 disk_create(struct disk *dp, int version)
 {
 
-	if (version != DISK_VERSION_03 && version != DISK_VERSION_02 &&
+	if (version != DISK_VERSION_04 &&
+	    version != DISK_VERSION_03 &&
+	    version != DISK_VERSION_02 &&
 	    version != DISK_VERSION_01) {
-		printf("WARNING: Attempt to add disk %s%d %s",
-		    dp->d_name, dp->d_unit,
-		    " using incompatible ABI version of disk(9)\n");
+		printf("WARNING: Attempt to add disk %s%d"
+		    " using incompatible ABI version %d of disk(9)\n",
+		    dp->d_name, dp->d_unit, version);
 		printf("WARNING: Ignoring disk %s%d\n",
 		    dp->d_name, dp->d_unit);
 		return;
