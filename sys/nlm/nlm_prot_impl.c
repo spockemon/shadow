@@ -167,6 +167,10 @@ struct timeval nlm_zero_tv = { 0, 0 };
  */
 int nlm_nsm_state;
 
+/*
+ * A timeout for lock messages; defaults to 25 seconds
+ */
+static int lock_timeout = 25;
 
 /*
  * A lock to protect the host list and waiting lock list.
@@ -355,6 +359,8 @@ nlm_get_rpc(struct sockaddr *sa, rpcprog_t prog, rpcvers_t vers)
 	struct portmap mapping;
 	u_short port = 0;
 
+	char tmp[sizeof "ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"];
+
 	/*
 	 * First we need to contact the remote RPCBIND service to find
 	 * the right port.
@@ -400,7 +406,7 @@ try_tcp:
 	/*
 	 * Use the default timeout.
 	 */
-	timo.tv_sec = 25;
+	timo.tv_sec = lock_timeout;
 	timo.tv_usec = 0;
 again:
 	switch (rpcvers) {
@@ -503,8 +509,25 @@ again:
 		}
 
 		/* Otherwise, bad news. */
+		switch (sa->sa_family) {
+		case AF_INET:
+			inet_ntop(AF_INET,
+			    &((const struct sockaddr_in *) sa)->sin_addr,
+			    tmp, sizeof tmp);
+			break;
+#ifdef INET6
+		case AF_INET6:
+			inet_ntop(AF_INET6,
+			    &((const struct sockaddr_in6 *) sa)->sin6_addr,
+			    tmp, sizeof tmp);
+			break;
+#endif
+		default:
+			strcpy(tmp, "<unknown>");
+		}
+
 		NLM_ERR("NLM: failed to contact remote rpcbind, "
-		    "stat = %d, port = %d\n", (int) stat, port);
+		    "stat = %d, addr = %s, port = %d\n", (int) stat, tmp, port);
 		CLNT_DESTROY(rpcb);
 		return (NULL);
 	}
@@ -867,13 +890,15 @@ nlm_create_host(const char* caller_name)
 	    "version", CTLFLAG_RD, &host->nh_vers, 0, "");
 	SYSCTL_ADD_UINT(&host->nh_sysctl, SYSCTL_CHILDREN(oid), OID_AUTO,
 	    "monitored", CTLFLAG_RD, &host->nh_monstate, 0, "");
+	SYSCTL_ADD_UINT(&host->nh_sysctl, SYSCTL_CHILDREN(oid), OID_AUTO,
+	    "lock_timeout", CTLTYPE_INT | CTLFLAG_RW, &lock_timeout, 0, "");
 	SYSCTL_ADD_PROC(&host->nh_sysctl, SYSCTL_CHILDREN(oid), OID_AUTO,
 	    "lock_count", CTLTYPE_INT | CTLFLAG_RD, host, 0,
 	    nlm_host_lock_count_sysctl, "I", "");
 	SYSCTL_ADD_PROC(&host->nh_sysctl, SYSCTL_CHILDREN(oid), OID_AUTO,
 	    "client_lock_count", CTLTYPE_INT | CTLFLAG_RD, host, 0,
 	    nlm_host_client_lock_count_sysctl, "I", "");
-
+	
 	mtx_lock(&nlm_global_lock);
 
 	return (host);
@@ -1067,7 +1092,7 @@ nlm_find_host_by_addr(const struct sockaddr *addr, int vers)
 		break;
 #endif
 	default:
-		strcmp(tmp, "<unknown>");
+		strcpy(tmp, "<unknown>");
 	}
 
 
@@ -1131,6 +1156,35 @@ void nlm_host_release(struct nlm_host *host)
 	}
 }
 
+static void
+nlm_host_monfail(const struct nlm_host *host, bool action)
+{
+	const char *monitor = (action ? "monitor" : "unmonitor");
+
+	char tmp[sizeof "ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"];
+	const struct sockaddr *addr = (const struct sockaddr *)&(host->nh_addr);
+
+	switch (addr->sa_family) {
+	case AF_INET:
+		inet_ntop(AF_INET,
+		    &((const struct sockaddr_in *) addr)->sin_addr,
+		    tmp, sizeof tmp);
+		break;
+#ifdef INET6
+	case AF_INET6:
+		inet_ntop(AF_INET6,
+		    &((const struct sockaddr_in6 *) addr)->sin6_addr,
+		    tmp, sizeof tmp);
+		break;
+#endif
+	default:
+		strlcpy(tmp, "<unknown>", sizeof(tmp));
+	}
+
+	NLM_ERR("Local NSM refuses to %s %s (%s)\n",
+	    monitor, host->nh_caller_name, tmp);
+}
+
 /*
  * Unregister this NLM host with the local NSM due to idleness.
  */
@@ -1156,7 +1210,7 @@ nlm_host_unmonitor(struct nlm_host *host)
 	smmonid.my_id.my_vers = NLM_SM;
 	smmonid.my_id.my_proc = NLM_SM_NOTIFY;
 
-	timo.tv_sec = 25;
+	timo.tv_sec = lock_timeout;
 	timo.tv_usec = 0;
 	stat = CLNT_CALL(nlm_nsm, SM_UNMON,
 	    (xdrproc_t) xdr_mon, &smmonid,
@@ -1167,8 +1221,7 @@ nlm_host_unmonitor(struct nlm_host *host)
 		return;
 	}
 	if (smstat.res_stat == stat_fail) {
-		NLM_ERR("Local NSM refuses to unmonitor %s\n",
-		    host->nh_caller_name);
+		nlm_host_monfail(host, false);
 		return;
 	}
 
@@ -1221,7 +1274,7 @@ nlm_host_monitor(struct nlm_host *host, int state)
 	smmon.mon_id.my_id.my_proc = NLM_SM_NOTIFY;
 	memcpy(smmon.priv, &host->nh_sysid, sizeof(host->nh_sysid));
 
-	timo.tv_sec = 25;
+	timo.tv_sec = lock_timeout;
 	timo.tv_usec = 0;
 	stat = CLNT_CALL(nlm_nsm, SM_MON,
 	    (xdrproc_t) xdr_mon, &smmon,
@@ -1232,8 +1285,7 @@ nlm_host_monitor(struct nlm_host *host, int state)
 		return;
 	}
 	if (smstat.res_stat == stat_fail) {
-		NLM_ERR("Local NSM refuses to monitor %s\n",
-		    host->nh_caller_name);
+		nlm_host_monfail(host, true);
 		mtx_lock(&host->nh_lock);
 		host->nh_monstate = NLM_MONITOR_FAILED;
 		mtx_unlock(&host->nh_lock);
@@ -1607,7 +1659,7 @@ nlm_server_main(int addr_count, char **addrs)
 	memset(&id, 0, sizeof(id));
 	id.my_name = "NFS NLM";
 
-	timo.tv_sec = 25;
+	timo.tv_sec = lock_timeout;
 	timo.tv_usec = 0;
 	stat = CLNT_CALL(nlm_nsm, SM_UNMON_ALL,
 	    (xdrproc_t) xdr_my_id, &id,
