@@ -523,7 +523,7 @@ again:
 			break;
 #endif
 		default:
-			strcpy(tmp, "<unknown>");
+			strlcpy(tmp, "<unknown>", sizeof(tmp));
 		}
 
 		NLM_ERR("NLM: failed to contact remote rpcbind, "
@@ -1092,7 +1092,7 @@ nlm_find_host_by_addr(const struct sockaddr *addr, int vers)
 		break;
 #endif
 	default:
-		strcpy(tmp, "<unknown>");
+		strlcpy(tmp, "<unknown>", sizeof(tmp));
 	}
 
 
