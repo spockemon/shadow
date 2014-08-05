@@ -219,6 +219,10 @@ vdev_mirror_map_init(zio_t *zio)
 			mc->mc_offset = zio->io_offset;
 		}
 	}
+	for (c=0; c < mm->mm_children; c++) {
+		mc = &mm->mm_child[c];
+		VERIFY(mc->mc_vd != NULL);
+	}
 
 	zio->io_vsd = mm;
 	zio->io_vsd_ops = &vdev_mirror_vsd_ops;
@@ -456,7 +460,8 @@ vdev_mirror_io_start(zio_t *zio)
 				    zio->io_type, zio->io_priority, 0,
 				    vdev_mirror_scrub_done, mc));
 			}
-			return (ZIO_PIPELINE_CONTINUE);
+			zio_interrupt(zio);
+			return (ZIO_PIPELINE_STOP);
 		}
 		/*
 		 * For normal reads just pick one child.
@@ -483,7 +488,8 @@ vdev_mirror_io_start(zio_t *zio)
 		c++;
 	}
 
-	return (ZIO_PIPELINE_CONTINUE);
+	zio_interrupt(zio);
+	return (ZIO_PIPELINE_STOP);
 }
 
 static int
